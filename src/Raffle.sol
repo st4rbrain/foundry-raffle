@@ -2,8 +2,7 @@
 
 pragma solidity ^0.8.18;
 
-import {VRFCoordinatorV2Interface} from
-    "../lib/chainlink-brownie-contracts/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 
 contract Raffle is VRFConsumerBaseV2 {
@@ -140,7 +139,7 @@ contract Raffle is VRFConsumerBaseV2 {
         }
     }
 
-    
+
     /**
      * Getter Functions
      */

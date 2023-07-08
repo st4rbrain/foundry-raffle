@@ -6,6 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {DeployRaffle, HelperConfig} from "script/DeployRaffle.s.sol";
 import {Raffle} from "src/Raffle.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
+import {VRFCoordinatorV2Mock} from "@chainlink/contracts/src/v0.8/mocks/VRFCoordinatorV2Mock.sol";
 
 contract RaffleTest is Test {
     /** Events */
@@ -13,6 +14,7 @@ contract RaffleTest is Test {
 
     Raffle raffle;
     HelperConfig raffleConfig;
+    VRFCoordinatorV2Mock vrfCoordinatorMock;
 
     address private PLAYER = makeAddr("player");
     uint256 private constant STARTING_PLAYER_BALANCE = 10 ether;
@@ -23,6 +25,7 @@ contract RaffleTest is Test {
     bytes32 gasLane;
     uint64 subscriptionId;
     uint32 callbackGasLimit;
+    address link;
 
     function setUp() external {
         DeployRaffle deployRaffle = new DeployRaffle();
@@ -34,9 +37,10 @@ contract RaffleTest is Test {
             vrfCoordinator,
             gasLane,
             subscriptionId,
-            callbackGasLimit
+            callbackGasLimit,
+            link
         ) = raffleConfig.activeNetworkConfig();
-
+        vrfCoordinatorMock = VRFCoordinatorV2Mock(vrfCoordinator);
         // Transfer some eth to the player
         vm.deal(PLAYER, STARTING_PLAYER_BALANCE);
     }
@@ -74,6 +78,9 @@ contract RaffleTest is Test {
         raffle.enterRaffle{value: entryFee}();
         vm.warp(block.timestamp + interval + 1);
         vm.roll(block.number + 1);
+
+        uint64 subId = vrfCoordinatorMock.createSubscription();
+        vrfCoordinatorMock.addConsumer(subId, address(raffle));
 
         raffle.performUpkeep("");
         vm.expectRevert(Raffle.Raffle__RaffleNotOpen.selector);
