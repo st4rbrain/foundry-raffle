@@ -16,7 +16,7 @@ contract HelperConfig is Script {
         uint32 callBackGasLimit;
     }
 
-    NetworkConfig private activeNetworkConfig;
+    NetworkConfig public activeNetworkConfig;
 
     constructor() {
         if (block.chainid == 11155111) {
