@@ -6,13 +6,14 @@ import {VRFCoordinatorV2Interface} from
     "../lib/chainlink-brownie-contracts/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 
-error Raffle__NotEnoughEthSent();
-error Raffle__NotOwner();
-error Raffle__TransferFailed();
-error Raffle__RaffleNotOpen();
-error Raffle__UpkeepNotNeeded(uint256 raffleState, uint256 currentBalance, uint256 numPlayers);
-
 contract Raffle is VRFConsumerBaseV2 {
+    /** Custom Errors */
+    error Raffle__NotEnoughEthSent();
+    error Raffle__NotVRFCoordinator();
+    error Raffle__TransferFailed();
+    error Raffle__RaffleNotOpen();
+    error Raffle__UpkeepNotNeeded(uint256 raffleState, uint256 currentBalance, uint256 numPlayers);
+
     /**
      * Type declarations
      */
@@ -68,12 +69,14 @@ contract Raffle is VRFConsumerBaseV2 {
     /**
      * Modifiers
      */
-    modifier onlyOwner() {
-        if (msg.sender != i_owner) {
-            revert Raffle__NotOwner();
+    modifier onlyVRFCoordinator() {
+        if (msg.sender != address(i_vrfCoordinator)) {
+            revert Raffle__NotVRFCoordinator();
         }
         _;
     }
+
+
 
     function enterRaffle() external payable {
         if (msg.value < i_entryFee) {
@@ -120,7 +123,7 @@ contract Raffle is VRFConsumerBaseV2 {
         );
     }
 
-    function fulfillRandomWords(uint256, /* requestId */ uint256[] memory randomWords) internal override {
+    function fulfillRandomWords(uint256 /* requestId */, uint256[] memory randomWords) internal override {
         // Checks
         // Effects (Our own contracts)
         uint256 indexOfWinner = randomWords[0] % s_players.length;
@@ -137,6 +140,7 @@ contract Raffle is VRFConsumerBaseV2 {
         }
     }
 
+    
     /**
      * Getter Functions
      */
@@ -146,5 +150,9 @@ contract Raffle is VRFConsumerBaseV2 {
 
     function getRaffleState() external view returns (RaffleState) {
         return s_raffleState;
+    }
+
+    function getPlayer(uint256 playerIndex) external view returns (address) {
+        return s_players[playerIndex];
     }
 }

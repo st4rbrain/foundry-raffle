@@ -8,8 +8,14 @@ import {Raffle} from "src/Raffle.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 
 contract RaffleTest is Test {
+    /** Events */
+    event EnteredRaffle(address indexed player);
+
     Raffle raffle;
     HelperConfig raffleConfig;
+
+    address private PLAYER = makeAddr("player");
+    uint256 private constant STARTING_PLAYER_BALANCE = 10 ether;
 
     uint256 entryFee;
     uint256 interval;
@@ -18,12 +24,10 @@ contract RaffleTest is Test {
     uint64 subscriptionId;
     uint32 callbackGasLimit;
 
-    address public PLAYER = makeAddr("player");
-
     function setUp() external {
         DeployRaffle deployRaffle = new DeployRaffle();
         (raffle, raffleConfig) = deployRaffle.run();
-    
+
         (   
             entryFee,
             interval,
@@ -32,10 +36,47 @@ contract RaffleTest is Test {
             subscriptionId,
             callbackGasLimit
         ) = raffleConfig.activeNetworkConfig();
+
+        // Transfer some eth to the player
+        vm.deal(PLAYER, STARTING_PLAYER_BALANCE);
     }
 
     function testRaffleInitializedInOpenState() external view {
         assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
     }
 
+    //////////////////
+    // Enter Raffle //
+    /////////////////
+    function testRaffleEntryRevertsOnNotPayingEntryFee() external {
+        vm.startPrank(PLAYER);
+        vm.expectRevert(Raffle.Raffle__NotEnoughEthSent.selector);
+        raffle.enterRaffle();
+        vm.stopPrank();
+    }
+
+    function testRaffleRecordsPlayersWhenTheyEnter() external {
+        vm.prank(PLAYER);
+        raffle.enterRaffle{value: entryFee}();
+        assertEq(PLAYER, raffle.getPlayer(0));
+    }
+
+    function testEmitsEventOnPlayerEntrance() external {
+        vm.prank(PLAYER);
+        vm.expectEmit(true, false, false, false, address(raffle));
+
+        emit EnteredRaffle(PLAYER);
+        raffle.enterRaffle{value: entryFee}();
+    }
+
+    function testCantEnterWhenRaffleIsCalculating() external {
+        vm.prank(PLAYER);
+        raffle.enterRaffle{value: entryFee}();
+        vm.warp(block.timestamp + interval + 1);
+        vm.roll(block.number + 1);
+
+        raffle.performUpkeep("");
+        vm.expectRevert(Raffle.Raffle__RaffleNotOpen.selector);
+        raffle.enterRaffle{value: entryFee}();
+    }
 }
