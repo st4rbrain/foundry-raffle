@@ -8,10 +8,12 @@ import {Raffle} from "src/Raffle.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {VRFCoordinatorV2Mock} from "@chainlink/contracts/src/v0.8/mocks/VRFCoordinatorV2Mock.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {Winner} from "./Winner.sol";
 
 contract RaffleTest is Test {
     /** Events */
     event EnteredRaffle(address indexed player);
+    event PickedWinner(address indexed winner);
 
     Raffle raffle;
     HelperConfig raffleConfig;
@@ -30,6 +32,7 @@ contract RaffleTest is Test {
 
     modifier raffleEntered() {
         vm.prank(PLAYER);
+        console.log(PLAYER);
         raffle.enterRaffle{value: entryFee}();
         _;
     }
@@ -112,6 +115,18 @@ contract RaffleTest is Test {
         assert(!upkeepNeeded);
     }
 
+    function testCheckUpkeepReturnsFalseIfRaffleHasNoPlayers() external intervalPassed {
+        vm.prank(PLAYER);
+        address(raffle).call{value: entryFee}("");
+        (bool upkeepNeeded, ) = raffle.checkUpkeep("");
+        assert(!upkeepNeeded);
+    }
+
+    function testCheckUpkeepReturnsTrueIfAllConditionsMet() external raffleEntered intervalPassed {
+        (bool upkeepNeeded, ) = raffle.checkUpkeep("");
+        assert(upkeepNeeded == true);
+    }
+
 
     ////////////////////
     // Perform Upkeep //
@@ -157,5 +172,66 @@ contract RaffleTest is Test {
         );
     }
 
+    function testfulfillRandomWordsPickAWinnerResetsAndSendsMoney() external raffleEntered intervalPassed {
+        // Arrange
+        uint160 additionalEntrants = 5;
+        uint160 startingIndex = 1;
+        for (uint160 i=startingIndex; i<additionalEntrants+startingIndex; i++) {
+            address player = address(i);
+            hoax(player, STARTING_PLAYER_BALANCE);
+            raffle.enterRaffle{value: entryFee}();
+        }
 
+        uint256 prizeMoney = entryFee * (additionalEntrants + 1);
+
+        // Pretent to be vrf coordinator to get a random number and pick a winner
+        vm.recordLogs();
+        raffle.performUpkeep("");
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        bytes32 requestId = entries[1].topics[1];
+
+        uint256 previousTimeStamp = raffle.getLastTimeStamp();
+        VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(uint256(requestId), address(raffle));
+        Vm.Log[] memory newEntries = vm.getRecordedLogs();
+
+        bytes32 winner = newEntries[0].topics[1];
+
+        // Assert
+        uint256 endingRaffleBalance = address(raffle).balance;
+
+        assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
+        assert(address(uint160(uint256(winner))) != address(0));
+        assert(raffle.getRecentWinner() != address(0));
+        assert(raffle.getNumberOfPlayers() == 0);
+        assert(raffle.getLastTimeStamp() > previousTimeStamp);
+        assert(endingRaffleBalance == 0);
+        assert(raffle.getRecentWinner().balance == prizeMoney - entryFee + STARTING_PLAYER_BALANCE);
+    }
+
+    function testFulfillRandomWorksRevertsIfTransferFailed() external {
+        // Winner is a contract as a player that will reject second call value
+        vm.startBroadcast();
+        Winner winner = new Winner();
+        vm.stopBroadcast();
+
+        (bool success,) = address(winner).call{value: STARTING_PLAYER_BALANCE}("");
+        console.log("Winner Balance:",address(winner).balance);
+        vm.prank(address(winner));
+        raffle.enterRaffle{value: entryFee}();
+
+        vm.warp(block.timestamp + interval + 1);
+        vm.roll(block.number + 1);
+        vm.recordLogs();
+        raffle.performUpkeep("");
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bytes32 requestId = entries[1].topics[1];
+        VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(uint256(requestId), address(raffle));
+
+        assert(raffle.getRecentWinner() == address(0));
+    }
+
+    function testReturnsTheCorrectEntryFee() external {
+        assert(raffle.getEntryFee() == entryFee);
+    }
 }
