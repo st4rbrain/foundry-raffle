@@ -54,7 +54,7 @@ contract RaffleTest is Test {
             gasLane,
             subscriptionId,
             callbackGasLimit,
-            link
+            link,
         ) = raffleConfig.activeNetworkConfig();
         vrfCoordinatorMock = VRFCoordinatorV2Mock(vrfCoordinator);
         // Transfer some eth to the player
@@ -162,9 +162,15 @@ contract RaffleTest is Test {
     /////////////////////////
     // fulfillRandomWords //
     ////////////////////////
+    modifier skipFork() {
+        if (block.chainid != 31337) return;
+        _;
+    }
+
+
     function testFulfillRandomWordsCanOnlyBeCalledAfterPerformUpkeep(
         uint256 randomRequestId
-    ) external raffleEntered intervalPassed {
+    ) external skipFork raffleEntered intervalPassed {
         vm.expectRevert("nonexistent request");
         VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(
             randomRequestId,
@@ -172,7 +178,8 @@ contract RaffleTest is Test {
         );
     }
 
-    function testfulfillRandomWordsPickAWinnerResetsAndSendsMoney() external raffleEntered intervalPassed {
+    function testfulfillRandomWordsPickAWinnerResetsAndSendsMoney(
+    ) external skipFork raffleEntered intervalPassed {
         // Arrange
         uint160 additionalEntrants = 5;
         uint160 startingIndex = 1;
@@ -209,7 +216,7 @@ contract RaffleTest is Test {
         assert(raffle.getRecentWinner().balance == prizeMoney - entryFee + STARTING_PLAYER_BALANCE);
     }
 
-    function testFulfillRandomWorksRevertsIfTransferFailed() external {
+    function testFulfillRandomWordsRevertsIfTransferFailed() external skipFork {
         // Winner is a contract as a player that will reject second call value
         vm.startBroadcast();
         Winner winner = new Winner();
