@@ -238,7 +238,7 @@ contract RaffleTest is Test {
         assert(raffle.getRecentWinner() == address(0));
     }
 
-    function testReturnsTheCorrectEntryFee() external {
+    function testReturnsTheCorrectEntryFee() external view {
         assert(raffle.getEntryFee() == entryFee);
     }
 }

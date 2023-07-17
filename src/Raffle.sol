@@ -92,7 +92,7 @@ contract Raffle is VRFConsumerBaseV2 {
     }
 
     /**
-     * @dev This function is called by the Chainlink nodes to check if it's time to perform and upkeep
+     * @dev This function is called by the Chainlink nodes to check if it's time to perform an upkeep
      *         1. Checkdata is provided to let Chainlink know if your function requires any input parameter
      */
 
